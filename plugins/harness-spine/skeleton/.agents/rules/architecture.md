@@ -1,7 +1,3 @@
----
-paths:
-  - {{SOURCE_GLOB}}
----
 # Architecture
 
 ## Layers & dependency direction

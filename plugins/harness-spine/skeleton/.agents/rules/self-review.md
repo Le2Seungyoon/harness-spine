@@ -9,14 +9,22 @@ Capturing Learnings asks *what should outlive this task*.
 down, not just thought: into the PR description when the task becomes a PR, into the completion
 report when it does not. Work that never opens a PR still needs ②.
 
-Where a PR is involved, run it **after** merging the default branch in and **before** you push
-(`git-workflow.md` → Merge main before opening a PR) — gates run on the merged state or they
-prove nothing.
+Where a PR is involved, run it **after** merging the base in and **before** you push
+(`git-workflow.md` → Before you push) — gates run on the merged state or they prove nothing.
 
 ## ① Gates — run them, paste the output
 
-<!-- FILL: one row per gate this project has — `Run` | `What it proves`. Name the single command
-that runs them all where one exists. -->
+Run the rows your change can reach, and say which you skipped and why.
+
+| Run | What it proves |
+|-----|----------------|
+| `{{TEST_COMMAND}}` | the project's own suite |
+| the harness loop (AGENTS.md → Commands) | every hook/scanner still fires **and** stays quiet; registrations in parity; generated copies fresh; rule links resolve |
+<!-- FILL: one row per further gate this project has. Name the single command that runs them all
+where one exists. -->
+
+**Report gates against what lands, not the working tree.** A working tree can hold what the
+commit does not: run them on a clean tree (`git status` empty) and name the commit.
 
 Red here is not a review comment; fix it before you declare done. Where the same judgment exists
 as both a hook and a repo-wide scan, **the scan is not redundant** — a hook sees this session's

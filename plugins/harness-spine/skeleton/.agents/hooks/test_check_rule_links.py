@@ -24,19 +24,19 @@ def check(name, condition, detail=""):
 
 def run(root):
     proc = subprocess.run(
-        [sys.executable, SCRIPT], capture_output=True, text=True, timeout=10,
+        [sys.executable, SCRIPT], capture_output=True, text=True, encoding="utf-8", timeout=10,
         env=dict(os.environ, CLAUDE_PROJECT_DIR=root),
     )
     return proc.stdout.strip(), proc.returncode
 
 
-def build(root, rules=None, extra=None, claude_md="# Project\n"):
-    os.makedirs(os.path.join(root, ".claude", "rules"), exist_ok=True)
-    os.makedirs(os.path.join(root, ".claude", "hooks"), exist_ok=True)
-    with open(os.path.join(root, "CLAUDE.md"), "w", encoding="utf-8") as f:
-        f.write(claude_md)
+def build(root, rules=None, extra=None, agents_md="# Project\n"):
+    os.makedirs(os.path.join(root, ".agents", "rules"), exist_ok=True)
+    os.makedirs(os.path.join(root, ".agents", "hooks"), exist_ok=True)
+    with open(os.path.join(root, "AGENTS.md"), "w", encoding="utf-8") as f:
+        f.write(agents_md)
     for name, body in (rules or {}).items():
-        with open(os.path.join(root, ".claude", "rules", name), "w", encoding="utf-8") as f:
+        with open(os.path.join(root, ".agents", "rules", name), "w", encoding="utf-8") as f:
             f.write(body)
     for rel in extra or []:
         path = os.path.join(root, rel.replace("/", os.sep))
@@ -55,7 +55,7 @@ def main():
         check("broken pointer exits 1", rc == 1, f"rc={rc}")
 
     with tempfile.TemporaryDirectory() as root:
-        build(root, rules={"a.md": "Wired in `.claude/hooks/gone.py`.\n"})
+        build(root, rules={"a.md": "Wired in `.agents/hooks/gone.py`.\n"})
         check("broken full path is caught", "RULE_LINKS_BROKEN" in run(root)[0])
 
     with tempfile.TemporaryDirectory() as root:
@@ -63,8 +63,8 @@ def main():
         check("broken markdown link is caught", "RULE_LINKS_BROKEN" in run(root)[0])
 
     with tempfile.TemporaryDirectory() as root:
-        build(root, claude_md="| `nope.md` | when to read |\n")
-        check("broken pointer in CLAUDE.md is caught", "RULE_LINKS_BROKEN" in run(root)[0])
+        build(root, agents_md="| `nope.md` | when to read |\n")
+        check("broken pointer in AGENTS.md is caught", "RULE_LINKS_BROKEN" in run(root)[0])
 
     # --- must-pass half: none of these is a broken path ---
     with tempfile.TemporaryDirectory() as root:
@@ -74,25 +74,36 @@ def main():
                 "a.md": (
                     "Sibling by bare name: `b.md`.\n"
                     "Bare harness file: `settings.json`.\n"
-                    "Full path: `.claude/hooks/check_rules_size.py`.\n"
-                    "Root file by name: `CLAUDE.md`.\n"
-                    "A glob: `.claude/rules/*.md`.\n"
+                    "Full path: `.agents/hooks/check_rules_size.py`.\n"
+                    "Root file by name: `AGENTS.md`.\n"
+                    "A glob: `.agents/rules/*.md`.\n"
                     "A placeholder: `origin/{{DEFAULT_BRANCH}}/notes.md`.\n"
                     "A shape: `test_<name>.py` and `tests/<module>/test_*.py`.\n"
                     "A URL: `https://example.com/spec.md`.\n"
                     "A command: `git push` and `uv run pytest`.\n"
                     "A directory: `docs/` and `src/`.\n"
                     "A file with no listed extension: `.env.template`.\n"
-                    "A skill id: `claude-md-management:claude-md-improver`.\n"
+                    "A skill id: `refactor-agent-rules`.\n"
                 ),
                 "b.md": "# B\n",
             },
-            extra=[".claude/settings.json", ".claude/hooks/check_rules_size.py"],
+            extra=[".claude/settings.json", ".agents/hooks/check_rules_size.py"],
         )
         out, rc = run(root)
         check("clean tree reports clean", "RULE_LINKS_CLEAN" in out, out[:90])
         check("clean tree exits 0", rc == 0, f"rc={rc}")
         check("clean tree says how many it examined", "references across" in out, out[:90])
+
+    # --- scope stays narrow: only AGENTS.md + .agents/rules are scanned (2026-10-23) ---
+    with tempfile.TemporaryDirectory() as root:
+        build(root, rules={"a.md": "# A\n"})
+        for rel in (".agents/hooks/notes.md", ".agents/skills/s/SKILL.md", ".agents/agents/lane.md"):
+            path = os.path.join(root, rel)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("See `gone-forever.md`.\n")
+        out, rc = run(root)
+        check("hooks/skills/agents markdown is out of scope", "RULE_LINKS_CLEAN" in out and rc == 0, out[:90])
 
     # --- an empty target set is a failure, not a pass ---
     with tempfile.TemporaryDirectory() as root:
