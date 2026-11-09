@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
-  "name": "claude-harness-spine",
+  "name": "harness-spine",
   "owner": {
     "name": "Le2Seungyoon",
     "url": "https://github.com/Le2Seungyoon"
