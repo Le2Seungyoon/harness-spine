@@ -1,4 +1,4 @@
-# claude-harness-spine
+# harness-spine
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -29,7 +29,7 @@ enforcement hooks — distributed as a Claude Code plugin and scaffolded into an
 
 ## Built on the Claude Code Ecosystem
 
-`claude-harness-spine` is a harness that orchestrates Claude Code plugins:
+`harness-spine` is a harness that orchestrates Claude Code plugins:
 
 - **[superpowers](https://claude.com/plugins/superpowers)** — the scaffolded `workflow.md` calls
   its `brainstorming` / `test-driven-development` / `verification-before-completion` skills before
@@ -65,8 +65,8 @@ Running `/harness-spine:init` in a project scaffolds:
 ## Install
 
 ```
-/plugin marketplace add Le2Seungyoon/claude-harness-spine
-/plugin install harness-spine@claude-harness-spine
+/plugin marketplace add Le2Seungyoon/harness-spine
+/plugin install harness-spine@harness-spine
 ```
 
 ## Use
