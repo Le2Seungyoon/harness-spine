@@ -1,0 +1,47 @@
+# Project config for Codex. Codex ignores this until the project is trusted
+# (`[projects."<abs path>"] trust_level = "trusted"` in ~/.codex/config.toml, or the trust prompt
+# on first run in the CLI TUI). Trust is per checkout path: every worktree is a new project to
+# Codex (../.agents/rules/runtime.md -> Codex hook trust).
+#
+# No sandbox_mode / approval_policy: whether the sandbox starts is a property of the host, not of
+# this repo. See ../.agents/rules/runtime.md before adding either.
+#
+# Codex has no `permissions.deny`: any deny in .claude/settings.json protects Claude sessions
+# only. A rule that must hold here too needs a PreToolUse hook below.
+
+# Codex truncates AGENTS.md at this size SILENTLY; check_rules_size.py reads this value and warns
+# at 80% of it.
+project_doc_max_bytes = 65536
+project_root_markers = [".git"]
+
+# Commands resolve through `git rev-parse --show-toplevel`, not a cwd-relative `./` path: Codex
+# may start in a subdirectory, and a relative path that misses is indistinguishable from a clean
+# run. Absolute paths are wrong too -- worktrees live at different paths. The advisory hooks drain
+# stdin and stay silent when unresolvable; the PreToolUse guards deny instead, because a guard
+# that cannot find itself must not let the call through.
+[[hooks.PostToolUse]]
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = 'r=$(git rev-parse --show-toplevel 2>/dev/null); if [ -f "$r/.agents/hooks/check_rules_size.py" ]; then python3 "$r/.agents/hooks/check_rules_size.py"; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi'
+timeout = 15
+
+# The git gates judge the tree the COMMAND names (`cd <dir>`, `git -C <dir>`), not this root --
+# the root only locates the script. No prefix filter exists here, and none belongs: the script
+# self-filters, and a prefix misses `git -C <dir> push` (enforcement.md -> Hook contracts).
+[[hooks.PreToolUse]]
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = 'r=$(git rev-parse --show-toplevel 2>/dev/null); if [ -f "$r/.agents/hooks/git_gates.py" ]; then python3 "$r/.agents/hooks/git_gates.py" push; else printf "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"git_gates.py could not be resolved from the git root; refusing rather than running unguarded.\"}}\n"; exit 2; fi'
+timeout = 30
+
+[[hooks.PreToolUse]]
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = 'r=$(git rev-parse --show-toplevel 2>/dev/null); if [ -f "$r/.agents/hooks/git_gates.py" ]; then python3 "$r/.agents/hooks/git_gates.py" commit; else printf "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"git_gates.py could not be resolved from the git root; refusing rather than running unguarded.\"}}\n"; exit 2; fi'
+timeout = 10
+
+[[hooks.PostToolUse]]
+[[hooks.PostToolUse.hooks]]
+type = "command"
+command = 'r=$(git rev-parse --show-toplevel 2>/dev/null); if [ -f "$r/.agents/hooks/build-agents.py" ]; then python3 "$r/.agents/hooks/build-agents.py" --hook; else { command -p cat 2>/dev/null || cat; } >/dev/null 2>&1 || :; fi'
+timeout = 20

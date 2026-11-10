@@ -1,13 +1,14 @@
 ---
 name: init
-description: Scaffold THIS plugin's harness skeleton (CLAUDE.md + .claude/rules + enforcement hooks) into a repo that has none. Use when the user asks to "init the harness", "set up claude rules", or "scaffold the harness" — not for writing a CLAUDE.md from scratch (that is the built-in /init), and not for a repo that already has the harness (that is the update skill).
+description: Scaffold THIS plugin's cross-provider harness skeleton (AGENTS.md + .agents/ rules, skills and hooks, registered for both Claude Code and Codex) into a repo that has none. Use when the user asks to "init the harness", "set up agent rules", or "scaffold the harness" — not for writing a CLAUDE.md from scratch (that is the built-in /init), and not for a repo that already has a harness (that is the update skill).
 ---
 
 # init — bootstrap the harness into a project
 
-Scaffolds a project-agnostic Claude Code harness (instruction files + rules + enforcement hooks)
-into the current repository, fills what it can **detect**, **interviews** for the rest, and
-**reports** the `<!-- FILL -->` markers left for the human.
+Scaffolds a project-agnostic, cross-provider agent harness into the current repository: one
+shared source under `.agents/` + `AGENTS.md`, registered for each harness (`CLAUDE.md` →
+`@AGENTS.md`, `.claude/settings.json`, `.codex/config.toml`). It fills what it can **detect**,
+**interviews** for the rest, and **reports** the FILL markers left for the human.
 
 The files to copy live in the plugin's shared skeleton home, `${CLAUDE_PLUGIN_ROOT}/skeleton/` —
 shared with the `update` skill, so **neither skill keeps its own copy**. **Never invent harness
@@ -17,29 +18,37 @@ content — copy from `skeleton/` and substitute.**
 
 ### 1. Safety / pre-flight
 - Confirm the CWD is the project root the user wants to scaffold.
-- Check for existing harness files (`CLAUDE.md`, `.claude/rules/`, `.claude/settings.json`). If any
-  exist, **STOP and ask** per file: merge / overwrite / skip. Never clobber an existing `CLAUDE.md`.
+- Check for existing harness files: `AGENTS.md`, `CLAUDE.md`, `.agents/`, `.claude/rules/`,
+  `.claude/settings.json`, `.codex/config.toml`. **A harness of either layout → offer `update`
+  instead** (it also migrates the legacy `.claude/rules` layout). A lone hand-written `CLAUDE.md`
+  or `AGENTS.md` with no rules dir: **STOP and ask** merge / overwrite / skip — never clobber it.
 - `git branch --show-current` and follow the Branch-First convention (offer a branch) — this step
   writes files.
 
 ### 2. Detect (fill what the repo already tells you — read, don't ask)
 - **VCS host + default branch**: `git remote -v` (github.com / bitbucket.org / gitlab.com / other);
-  default branch via `git symbolic-ref refs/remotes/origin/HEAD` (fallback `main`).
+  default branch via `git symbolic-ref refs/remotes/origin/HEAD` (fallback `main`). Note whether
+  `gh` is installed — it decides the PR route named in `git_gates.py`.
 - **Package manager + commands**: `uv.lock`/`pyproject.toml` (uv), `package.json` + lockfile
   (npm/pnpm/yarn), `go.mod`, `Cargo.toml`, `poetry.lock`, `requirements.txt`, … → derive
   `{{SETUP_COMMAND}}` and `{{TEST_COMMAND}}`.
 - **Source & test globs**: infer `{{SOURCE_GLOB}}` (`src/**`, `include/**`, `app/**`, …) and
-  `{{TEST_GLOB}}` (`tests/**`, …) from the tree.
+  `{{TEST_GLOB}}` (`tests/**`, …) from the tree. They become read triggers in the AGENTS.md rules
+  table — nothing auto-loads a rule (`runtime.md` → Rule delivery).
+- **Python**: the hooks need `python3` on PATH, **≥ 3.11** (the parity test uses `tomllib`). If
+  `python3` is missing or older, say so now — every hook would fail open on the first call.
 
 ### 3. Interview (ONE question at a time, ONLY for what you couldn't detect)
 - `{{PROJECT_NAME}}` (default: repo dir name) and `{{PROJECT_ONE_LINER}}` (domain, 2-3 lines).
 - `{{COMMIT_LANGUAGE}}` / commit style (default: English, single-line subject, no AI attribution).
+- **Branch model**: is there a standing staging branch (e.g. `develop`)? It fills `BASES` in
+  `git_gates.py` and the staging FILL in `git-workflow.md`.
 - Configuration-table surfaces: `{{SECRETS_EXAMPLES}}`, `{{TUNABLES_EXAMPLES}}`,
   `{{CONFIG_LOCATION}}`, `{{DEPS_FILES}}`.
-- Whether the **superpowers** plugin is installed (keep or delete that `workflow.md` section).
+- Whether the **superpowers** plugin is used (keep or drop it from `enabledPlugins`; the
+  `workflow.md` method section works without it).
 - Confirm the detected package manager / test command.
-- Whether `CLAUDE.md` → Stack table is worth keeping (versions to pin, cross-repo sync notes,
-  dependency-add bar) — fill it or delete the section.
+- Whether `AGENTS.md` → Stack table is worth keeping — fill it or delete the section.
 - **"What gets built N times in this project?"** — screens? endpoints? pipeline nodes? reports?
   Whatever they name is what will be copied instead of shared, and later defines the signature a
   counting check would have to match. Record the answer in `coding-patterns.md` → canonical analogs.
@@ -48,73 +57,78 @@ content — copy from `skeleton/` and substitute.**
   copied; if they don't have an answer yet, leave the row with an explicit "no home yet".
 
 ### 4. Copy + fill
-- Copy everything under `skeleton/` into the project root, preserving paths (`CLAUDE.md`,
-  `.claude/rules/*.md` — including `enforcement.md` —, `.claude/settings.json`,
-  `.claude/hooks/check_rules_size.py` **and its `test_check_rules_size.py`**,
-  `.claude/scripts/check_rule_links.py` **and its `test_check_rule_links.py`**).
+- Copy everything under `skeleton/` into the project root, preserving paths: `AGENTS.md`,
+  `CLAUDE.md` (exactly `@AGENTS.md`), `.agents/rules/*.md`, `.agents/skills/**`,
+  `.agents/hooks/*` (every script **and its `test_*.py`**), `.claude/settings.json`,
+  `.codex/config.toml`.
+- **Generate the per-harness copies**: `python3 .agents/hooks/build-agents.py`. It writes
+  `.claude/skills/refactor-agent-rules/` and `.codex/skills/refactor-agent-rules/`; commit them —
+  both harnesses read the copies, never the source.
 - Substitute all `{{VARS}}` with detected/interviewed values across the copied files.
-- **PR-gate hook variant** (`settings.json` + the `git-workflow.md` prose):
-  - The shipped default gates **`git push`** (works for any host). Keep it for Bitbucket / GitLab /
-    when `gh` is absent.
-  - If host is GitHub **and** `gh` is installed **and** the user prefers CLI PRs: swap the gate to
-    **`gh pr create`** — change the grep to `gh pr create`, the `if` to `Bash(gh pr create:*)`, and
-    the statusMessage/reason wording to "before PR" (reason template in the design doc).
-  - If the default branch isn't `main`, replace `main` in the hook command accordingly.
-- **Permissions — leave `allow` empty by default.** Claude Code already allows the common
+- **`git_gates.py` FILL slots** (`# FILL`, Python): `PROTECTED` (the branch that changes only by
+  PR — usually the default branch), `BASES` (every long-lived branch a push must contain), and
+  `PR_ROUTE` (`gh pr create` when GitHub + `gh`, else "the host's web UI"). Keep
+  `FETCH_TIMEOUT × len(BASES)` below the 30 s registration timeout.
+- **`check_rule_links.py` → `SEARCH_DIRS`**: add the project's source roots when source is not at
+  the repo root (rules name modules the way code imports them).
+- **Permissions — leave `allow` empty by default.** The harnesses already allow the common
   read-only commands, so most hand-written entries are dead weight: in a measured audit, 104 of 144
-  accumulated rules had never matched anything. Add an `allow` entry only for a command the user is
-  actually being prompted for repeatedly, and prefer the shape the parser can read — prompts come
-  from constructs it cannot statically parse (`for` loops, `$var`, `$( )`), which no allow-list
-  entry can pre-approve anyway.
-- **`deny` shapes that don't work**: `Write(<path>)` is accepted but never matches — file-write
-  denials must be written as `Edit(<path>)`. Verify any deny you add by triggering it once; an
-  entry that never fires is worse than none, because it reads as protection.
-- **enabledPlugins**: declare team-mandatory plugins in `settings.json` `enabledPlugins` ONLY from
-  official/default-known marketplaces (teammates get an auto-install prompt on open). Never put
-  personal-marketplace plugins — including this harness plugin itself — into project settings:
-  teammates without that marketplace only get "unknown marketplace" warnings.
+  accumulated rules had never matched anything. Add an entry only for a command the user is
+  actually being prompted for repeatedly.
+- **`deny` is Claude Code only.** Codex has no equivalent, so a rule that must hold in both
+  harnesses is a PreToolUse hook registered in both files. `Write(<path>)` denies are accepted but
+  never match — write file denials as `Edit(<path>)`, and verify any deny by triggering it once.
+- **enabledPlugins**: declare team-mandatory plugins ONLY from official/default-known marketplaces
+  (teammates get an auto-install prompt on open). Never put personal-marketplace plugins —
+  including this harness plugin itself — into project settings.
 
 ### 5. Verify
-- `python3 -c "import json; json.load(open('.claude/settings.json'))"` — valid JSON.
-- `python3 .claude/hooks/test_check_rules_size.py` — all checks pass. It covers both halves
-  (must-block *and* must-pass); a hook test with only the must-block half cannot catch false positives.
-- `python3 .claude/scripts/test_check_rule_links.py` — all checks pass. Then run
-  `python3 .claude/scripts/check_rule_links.py` on the filled tree: it must print
-  `RULE_LINKS_CLEAN`. Substitution can leave a pointer aimed at a file this project deleted.
-- Wire `check_rule_links.py` into the project's own test suite before finishing — as a shipped
-  script nothing calls, it is inert (`enforcement.md` -> Four layers).
-- Pipe a sample over-budget input through `.claude/hooks/check_rules_size.py` and confirm it nudges;
-  pipe a `git push` sample through the PR-gate command and confirm allow/deny behaves; pipe a
-  `git commit -m "... Co-Authored-By: ..."` sample through the commit-attribution hook and confirm
-  it denies (and that a trailer-free commit passes).
-- Grep for leftover `{{...}}` — none should ship raw. Any value you couldn't fill → convert to a
-  `<!-- FILL -->` marker instead of leaving a bare `{{VAR}}`.
+- `python3 -c "import json,tomllib; json.load(open('.claude/settings.json')); tomllib.load(open('.codex/config.toml','rb'))"`
+  — both registrations parse.
+- The harness loop from AGENTS.md → Commands: every `.agents/hooks/test_*.py` passes, then
+  `build-agents.py --check` prints `AGENTS_FRESH`, `test_harness_parity.py` prints `PASS`, and
+  `check_rule_links.py` prints `RULE_LINKS_CLEAN` on the **filled** tree (substitution can leave a
+  pointer aimed at a file this project deleted). A Codex-trust `WARN` from the parity test is
+  expected until step 6.
+- **Prove a gate can fail**: pipe a `git commit -m "x\n\nCo-Authored-By: …"` payload through
+  `git_gates.py commit` and confirm it denies, and a trailer-free one passes; pipe a push to the
+  protected branch through `git_gates.py push` and confirm it denies.
+- Wire the parity test, `build-agents.py --check` and `check_rule_links.py` into the project's own
+  test suite or CI before finishing — as shipped scripts nothing calls, they are inert
+  (`enforcement.md` → Four layers).
+- `grep -rnE '\{\{[A-Z_]+\}\}' AGENTS.md .agents/rules/` — no raw `{{VAR}}` may ship (hook code
+  and its tests carry `{{` legitimately, so they are out of this grep). Any value you couldn't fill → convert to a
+  FILL marker instead of leaving a bare `{{VAR}}`.
 
 ### 6. Report
 - List every remaining FILL marker (file + line) as a checklist for the human. **Grep both forms**
-  — `grep -rn -e '<!-- FILL' -e '# FILL' CLAUDE.md .claude/` — because markers in a `.py` file
-  carry the comment form and a `<!-- FILL -->`-only grep silently misses them.
-- Especially: the ② stub rules (`coding-patterns.md`, `architecture.md`, `testing.md`) whose deep
-  project rules only the human / a later session can write; `self-review.md` ① — an unfilled
-  gates table leaves half that checklist inert; and `check_rule_links.py` -> `SEARCH_DIRS` — if
-  this project's source is not at the repo root, an unfilled slot makes that checker report real
-  files as broken pointers, which is how a check gets deleted rather than fixed.
-- Remind: add topic/tool rules files (a service integration, a framework) as the project grows;
-  keep each under the ~150-line budget (the `check_rules_size.py` hook nudges when crossed).
+  — `grep -rn -e '<!-- FILL' -e '# FILL' AGENTS.md .agents/ .claude/ .codex/` — because markers in
+  `.py`/`.toml` files carry the comment form.
+- Especially: the stub rules (`coding-patterns.md`, `architecture.md`, `testing.md`) whose deep
+  project rules only the human / a later session can write; `self-review.md` ① — an unfilled gates
+  table leaves half that checklist inert; and `check_rule_links.py` → `SEARCH_DIRS`.
+- **Codex hook trust is the human's step**: hooks in `.codex/config.toml` do not run until someone
+  opens the `codex` CLI in this checkout once and accepts "Trust all and continue" — an IDE-only
+  session never shows the prompt (`runtime.md` → Codex hook trust). Then re-run the parity test.
+- Remind: add topic/tool rules files as the project grows, each with a row and a read trigger in
+  the AGENTS.md table; keep each under the ~150-line budget (`check_rules_size.py` nudges, and
+  `refactor-agent-rules` is the procedure).
 - **State plainly what was not installed: there is no counting layer.** The harness ships the
   convention ("extract on the second occurrence") and the place to put it (Shared homes), but
   nothing that counts occurrences — that detector has to be defined against this project's own
-  material (a markup string? an AST shape? a query?) and cannot be inherited.
+  material and cannot be inherited.
 - **Warn before anyone builds one**: measure its false-positive rate over the existing tree first,
   and gate one occurrence later than the convention asks. A candidate signature measured elsewhere
   ran at 12.5% / 25% / 75% false positives depending on the shape chosen — promoting such a check
-  straight to `permissions.deny` is how a hook gets switched off for good. See `enforcement.md` →
-  Before promoting a check to deny.
+  straight to a deny is how a hook gets switched off for good (`enforcement.md` → Before promoting
+  a check to deny).
 
 ## Notes
-- The harness is intentionally minimal — ① meta-process kept, ② stubbed, ③ tool-specific rules
-  dropped. Grow it per-project via Capturing Learnings, not by bloating the template.
-- Everything is prose + hooks; there is no runtime state.
-- **`init` is for a repo with no harness.** Once a repo has one, reconciling it against a newer
-  skeleton is the `update` skill's job — it matches section by section and never overwrites rules
-  the project has since written. If step 1 finds an existing harness, offer `update` instead.
+- The harness is intentionally minimal — the meta-process spine kept, tech-stack rules stubbed,
+  tool-specific rules dropped. Grow it per-project via Capturing Learnings, not by bloating the
+  template.
+- **One source, per-harness registration** (`harness.md` → The invariant). Supporting a further
+  harness later means another registration file and teaching the parity test about it — never a
+  second copy of the rules.
+- **`init` is for a repo with no harness.** Reconciling an existing one against a newer skeleton —
+  including migrating a `.claude/rules` harness to `.agents/` — is the `update` skill's job.

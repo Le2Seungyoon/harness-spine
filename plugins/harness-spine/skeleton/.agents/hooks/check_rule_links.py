@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Scanner: every file a rules file points at must exist.
 
-Run: python3 .claude/scripts/check_rule_links.py     (exit 1 on findings)
+Run: python3 .agents/hooks/check_rule_links.py     (exit 1 on findings)
 
-The CLAUDE.md rules table and the cross-references between rules files are the only delivery
+The AGENTS.md rules table and the cross-references between rules files are the only delivery
 mechanism the harness has, so **a stale path there is a rule nobody is told to read**. Nothing
 else notices: the prose still reads correctly, and the reader simply never arrives.
 
@@ -24,10 +24,11 @@ narrow, because a checker that flags prose gets deleted:
   - Anything containing a glob, a placeholder, or an angle-bracket is a PATTERN, not a path.
   - A bare filename resolves against the places harness files live, so `settings.json` and
     `workflow.md` are found without every reference having to spell out a full path.
+Measured on the shipped skeleton: 0 findings. Re-measure before tightening any of the above.
+
   - A backticked path WRAPPED ACROSS A LINE BREAK is not matched at all (the regex is
     newline-free), so it reads as a pointer and is checked by nothing. Judge a new pointer by the
     `N references` count moving, never by the CLEAN verdict alone.
-Measured on the shipped skeleton: 0 findings. Re-measure before tightening any of the above.
 
 This file ships in every project the harness scaffolds. Its LOGIC is project-agnostic, with one
 deliberate exception: the source roots in `SEARCH_DIRS` are filled per project. That line is
@@ -39,7 +40,19 @@ import os
 import re
 import sys
 
-GOVERNED = ("CLAUDE.md", ".claude/rules")
+# Print UTF-8 whatever the console code page is (cp949, cp1252, ...): a hook that dies on an
+# em dash or a non-ASCII path tells the session nothing.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8")
+
+GOVERNED = ("AGENTS.md", ".agents/rules")
+
+# A line that lists what is deliberately absent -- a .gitignore inventory, a deleted file's
+# restore command -- names paths that must NOT resolve. Flagging those is noise that trains
+# people to ignore the scanner.
+ABSENT_MARKERS = ("gitignore", "git show", "does not exist", "never read", "deleted",
+                  "restorable", "no longer", "was removed", "accepted, well-formed")
 EXTENSIONS = (".md", ".py", ".json", ".sh")
 # Where a bare filename is allowed to live: the harness dirs, plus this project's SOURCE ROOTS.
 # FILL the source roots. Rules files name modules the way the code imports them
@@ -48,7 +61,7 @@ EXTENSIONS = (".md", ".py", ".json", ".sh")
 # findings were real files under an unlisted `include/custflow`, a 95% false-positive rate — and
 # `enforcement.md` -> Before promoting a check to deny is exactly about that being fatal.
 SEARCH_DIRS = (
-    "", ".claude", ".claude/rules", ".claude/hooks", ".claude/scripts",
+    "", ".agents", ".agents/rules", ".agents/hooks", ".agents/scripts", ".claude", ".codex",
     # FILL: e.g. "src", "lib", "include", "include/<pkg>", "dags" -- delete if source is at root.
 )
 # A token carrying any of these describes a shape, not a file.
@@ -101,7 +114,17 @@ def main():
     for path in files:
         rel = os.path.relpath(path, root).replace("\\", "/")
         with open(path, "r", encoding="utf-8") as f:
-            for lineno, line in enumerate(f, 1):
+            body = f.read()
+        # Paragraph-scoped, not line-scoped: a disclaimer ("that path is gitignored") routinely
+        # wraps to the line after the path it excuses, and a line-scoped exemption misses it.
+        offset = 0
+        for para in body.split("\n\n"):
+            base = body[:offset].count("\n") + 1
+            offset += len(para) + 2
+            if any(w in para for w in ABSENT_MARKERS):
+                continue
+            for i, line in enumerate(para.split("\n")):
+                lineno = base + i
                 for token in candidates(line):
                     checked += 1
                     if not resolves(root, os.path.dirname(path), token):

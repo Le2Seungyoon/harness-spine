@@ -1,7 +1,3 @@
----
-paths:
-  - {{TEST_GLOB}}
----
 # Testing
 
 ## Conventions
@@ -18,7 +14,7 @@ paths:
 
 ## Invariant tests (the layer hooks cannot reach)
 
-A hook only sees edits made in a Claude session. Code written in an IDE, by a teammate, or by
+A hook only sees edits made in an agent session. Code written in an IDE, by a teammate, or by
 another agent never passes one. **A rule that must hold no matter who authored the code belongs
 here**, as a test over the tree itself — not only as a hook (`enforcement.md` → Four layers).
 
@@ -26,9 +22,11 @@ here**, as a test over the tree itself — not only as a hook (`enforcement.md` 
   listed, so the message tells the reader what to fix.
 - Give every invariant test an escape hatch the source can carry (a marker comment with a reason),
   or the first legitimate exception gets the test deleted.
-- Shipped with the harness: `.claude/scripts/check_rule_links.py` pins that every file a rules
+- Shipped with the harness: `.agents/hooks/check_rule_links.py` pins that every file a rules
   file points at still exists — the pointers `workflow.md` -> File size budget tells you to leave
-  behind. Wire it into this project's suite so a rename cannot silently orphan a rule.
+  behind; `.agents/hooks/test_harness_parity.py` pins that both harnesses register the same
+  gates; `build-agents.py --check` is the freshness test for generated skill/lane copies. Wire
+  all three into this project's suite or CI so they run on every authoring path.
   <!-- FILL: this project's invariant tests as they are added — what each pins, and its marker. -->
 
 ## Freshness tests for generated artifacts

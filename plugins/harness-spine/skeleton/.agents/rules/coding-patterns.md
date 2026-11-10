@@ -1,7 +1,3 @@
----
-paths:
-  - {{SOURCE_GLOB}}
----
 # Coding Patterns
 
 ## Before writing new code (the rule that generates the rest)

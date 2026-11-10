@@ -5,12 +5,12 @@
     "name": "Le2Seungyoon",
     "url": "https://github.com/Le2Seungyoon"
   },
-  "description": "Reusable Claude Code harness: CLAUDE.md + rules + enforcement hooks, scaffolded by /harness-spine:init and kept in sync by /harness-spine:update.",
+  "description": "Cross-provider agent harness: AGENTS.md + .agents/ rules, skills and enforcement hooks for Claude Code and Codex, scaffolded by /harness-spine:init and kept in sync by /harness-spine:update.",
   "plugins": [
     {
       "name": "harness-spine",
-      "description": "Scaffold a project-agnostic Claude Code harness into any repo — CLAUDE.md, seven rules files, enforcement hooks (PR gate, commit-attribution gate, file-size budget) and a rule-link scanner — then reconcile it section by section as the spine evolves.",
-      "version": "0.2.1",
+      "description": "Scaffold a project-agnostic agent harness for Claude Code and Codex from one source — AGENTS.md, .agents/ rules, the refactor-agent-rules skill, enforcement hooks (git gates, file-size budget, generated-copy freshness, registration parity) and a rule-link scanner — then reconcile it section by section as the spine evolves.",
+      "version": "0.3.0",
       "author": {
         "name": "Le2Seungyoon"
       },
@@ -18,7 +18,8 @@
       "category": "developer-tools",
       "keywords": [
         "harness",
-        "claude-md",
+        "agents-md",
+        "codex",
         "scaffold",
         "rules",
         "hooks"

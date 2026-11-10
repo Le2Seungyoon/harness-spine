@@ -1,7 +1,7 @@
 {
   "name": "harness-spine",
-  "description": "Scaffold and maintain a project-agnostic Claude Code harness: CLAUDE.md, rules files, enforcement hooks (PR gate, commit-attribution gate, file-size budget) and a rule-link scanner.",
-  "version": "0.2.1",
+  "description": "Scaffold and maintain a cross-provider agent harness (Claude Code + Codex): AGENTS.md, .agents/ rules and skills, enforcement hooks and their per-harness registrations.",
+  "version": "0.3.0",
   "author": {
     "name": "Le2Seungyoon",
     "url": "https://github.com/Le2Seungyoon"
@@ -9,7 +9,8 @@
   "license": "MIT",
   "keywords": [
     "harness",
-    "claude-md",
+    "agents-md",
+    "codex",
     "scaffold",
     "rules",
     "hooks"
